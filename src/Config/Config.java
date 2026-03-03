@@ -1261,4 +1261,52 @@ public static void fixDatabaseConstraints() {
     
     return profilePic;
 }
+    
+    public static boolean createShipping(int transactionId, String courierName, String trackingNumber, String address) {
+    Connection conn = null;
+    PreparedStatement pstmt = null;
+    
+    try {
+        conn = connect();
+        if (conn == null) return false;
+        
+        String sql = "INSERT INTO Shipping (Transaction_ID, Courier_Name, Tracking_Number, Shipping_Address, Shipping_Status, Estimated_Delivery) " +
+                    "VALUES (?, ?, ?, ?, 'In Transit', date('now', '+7 days'))";
+        pstmt = conn.prepareStatement(sql);
+        pstmt.setInt(1, transactionId);
+        pstmt.setString(2, courierName);
+        pstmt.setString(3, trackingNumber);
+        pstmt.setString(4, address);
+        
+        return pstmt.executeUpdate() > 0;
+    } catch (SQLException e) {
+        System.err.println("Create Shipping Error: " + e.getMessage());
+        return false;
+    } finally {
+        closeStatement(pstmt);
+        closeConnection(conn);
+    }
+}
+
+public static boolean deleteShipping(int shipId) {
+    Connection conn = null;
+    PreparedStatement pstmt = null;
+    
+    try {
+        conn = connect();
+        if (conn == null) return false;
+        
+        String sql = "DELETE FROM Shipping WHERE Ship_ID = ?";
+        pstmt = conn.prepareStatement(sql);
+        pstmt.setInt(1, shipId);
+        
+        return pstmt.executeUpdate() > 0;
+    } catch (SQLException e) {
+        System.err.println("Delete Shipping Error: " + e.getMessage());
+        return false;
+    } finally {
+        closeStatement(pstmt);
+        closeConnection(conn);
+    }
+}
 }

@@ -34,143 +34,18 @@ public class ProductManagementPanel extends JPanel {
     private static final int SLIDE_STEPS = 15;
     private int slideStep = 0;
 
-    public ProductManagementPanel(Dashboard dashboard) {
+        public ProductManagementPanel(Dashboard dashboard) {
         this.dashboard = dashboard;
         initComponents();
         loadProductData();
-    }
-
-    /**
-     * NetBeans generated code
-     */
-    // <editor-fold defaultstate="collapsed" desc="Generated Code">//GEN-BEGIN:initComponents
-    private void initComponents() {
-        setLayout(null);
-        setBackground(new Color(240, 240, 245));
-
-        JLabel lblTitle = new JLabel();
-        lblTitle.setFont(new Font("Serif", Font.BOLD, 28));
-        lblTitle.setForeground(new Color(20, 40, 60));
-        lblTitle.setText("Product Inventory");
-        lblTitle.setBounds(30, 20, 300, 40);
-        add(lblTitle);
-
-        JSeparator separator = new JSeparator();
-        separator.setForeground(new Color(255, 215, 0));
-        separator.setBounds(30, 65, 840, 2);
-        add(separator);
-
-        // Search Panel
-        JPanel searchPanel = new JPanel();
-        searchPanel.setLayout(null);
-        searchPanel.setBackground(Color.WHITE);
-        searchPanel.setBounds(30, 80, 500, 50);
-        searchPanel.setBorder(BorderFactory.createLineBorder(new Color(200, 200, 200)));
-        add(searchPanel);
-
-        JLabel lblSearch = new JLabel("Search:");
-        lblSearch.setFont(new Font("SansSerif", Font.PLAIN, 14));
-        lblSearch.setBounds(10, 15, 60, 25);
-        searchPanel.add(lblSearch);
-
-        txtSearch = new JTextField();
-        txtSearch.setBounds(70, 12, 250, 30);
-        txtSearch.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(new Color(180, 180, 180)),
-            BorderFactory.createEmptyBorder(5, 10, 5, 10)
-        ));
-        searchPanel.add(txtSearch);
-
-        btnSearch = new JButton("SEARCH");
-        btnSearch.setBounds(330, 12, 80, 30);
-        btnSearch.setBackground(new Color(255, 215, 0));
-        btnSearch.setForeground(new Color(40, 40, 40));
-        btnSearch.setFont(new Font("SansSerif", Font.BOLD, 11));
-        btnSearch.setFocusPainted(false);
-        btnSearch.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        btnSearch.addActionListener(e -> searchProducts());
-        addButtonHoverEffect(btnSearch, new Color(255, 215, 0), new Color(255, 235, 120));
-        searchPanel.add(btnSearch);
-
-        btnRefresh = new JButton("REFRESH");
-        btnRefresh.setBounds(415, 12, 80, 30);
-        btnRefresh.setBackground(new Color(100, 100, 100));
-        btnRefresh.setForeground(Color.WHITE);
-        btnRefresh.setFont(new Font("SansSerif", Font.BOLD, 11));
-        btnRefresh.setFocusPainted(false);
-        btnRefresh.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        btnRefresh.addActionListener(e -> loadProductData());
-        addButtonHoverEffect(btnRefresh, new Color(100, 100, 100), new Color(130, 130, 130));
-        searchPanel.add(btnRefresh);
-
-        // Buttons Panel
-        JPanel buttonPanel = new JPanel();
-        buttonPanel.setLayout(null);
-        buttonPanel.setBackground(Color.WHITE);
-        buttonPanel.setBounds(550, 80, 320, 50);
-        buttonPanel.setBorder(BorderFactory.createLineBorder(new Color(200, 200, 200)));
-        add(buttonPanel);
-
-        btnAdd = new JButton("ADD");
-        btnAdd.setBounds(20, 12, 70, 30);
-        btnAdd.setBackground(new Color(0, 150, 0));
-        btnAdd.setForeground(Color.WHITE);
-        btnAdd.setFont(new Font("SansSerif", Font.BOLD, 11));
-        btnAdd.setFocusPainted(false);
-        btnAdd.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        btnAdd.addActionListener(e -> addProduct());
-        addButtonHoverEffect(btnAdd, new Color(0, 150, 0), new Color(0, 180, 0));
-        buttonPanel.add(btnAdd);
-
-        btnEdit = new JButton("EDIT");
-        btnEdit.setBounds(95, 12, 70, 30);
-        btnEdit.setBackground(new Color(255, 150, 0));
-        btnEdit.setForeground(Color.WHITE);
-        btnEdit.setFont(new Font("SansSerif", Font.BOLD, 11));
-        btnEdit.setFocusPainted(false);
-        btnEdit.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        btnEdit.addActionListener(e -> editProduct());
-        addButtonHoverEffect(btnEdit, new Color(255, 150, 0), new Color(255, 180, 0));
-        buttonPanel.add(btnEdit);
-
-        btnDelete = new JButton("DELETE");
-        btnDelete.setBounds(170, 12, 70, 30);
-        btnDelete.setBackground(new Color(200, 0, 0));
-        btnDelete.setForeground(Color.WHITE);
-        btnDelete.setFont(new Font("SansSerif", Font.BOLD, 11));
-        btnDelete.setFocusPainted(false);
-        btnDelete.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        btnDelete.addActionListener(e -> deleteProduct());
-        addButtonHoverEffect(btnDelete, new Color(200, 0, 0), new Color(230, 0, 0));
-        buttonPanel.add(btnDelete);
-
-        btnViewWatches = new JButton("VIEW");
-        btnViewWatches.setBounds(245, 12, 70, 30);
-        btnViewWatches.setBackground(new Color(20, 40, 60));
-        btnViewWatches.setForeground(new Color(255, 215, 0));
-        btnViewWatches.setFont(new Font("SansSerif", Font.BOLD, 11));
-        btnViewWatches.setFocusPainted(false);
-        btnViewWatches.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        btnViewWatches.addActionListener(e -> openWatchViewer());
-        addButtonHoverEffect(btnViewWatches, new Color(20, 40, 60), new Color(40, 60, 80));
-        buttonPanel.add(btnViewWatches);
-
-        // Table
-        String[] columns = {"Watch ID", "Brand", "Model", "Price", "Stock", "Description"};
-        DefaultTableModel model = new DefaultTableModel(columns, 0) {
-            @Override
-            public boolean isCellEditable(int row, int column) {
-                return false;
-            }
-        };
         
-        productTable = new JTable(model);
-        productTable.setFont(new Font("SansSerif", Font.PLAIN, 12));
-        productTable.setRowHeight(30);
-        productTable.getTableHeader().setFont(new Font("SansSerif", Font.BOLD, 12));
-        productTable.getTableHeader().setBackground(new Color(20, 40, 60));
-        productTable.getTableHeader().setForeground(Color.WHITE);
-        productTable.setSelectionBackground(new Color(255, 215, 0, 100));
+        // Setup button listeners
+        setupButtonListeners();
+        
+        // Add hover effects
+        setupButtonHoverEffects();
+        
+        // Add mouse listener for double-click on table
         productTable.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
@@ -179,28 +54,201 @@ public class ProductManagementPanel extends JPanel {
                 }
             }
         });
+        
+        // Add enter key listener for search
+        txtSearch.addActionListener(e -> searchProducts());
+    }
 
-        scrollPane = new JScrollPane(productTable);
-        scrollPane.setBounds(30, 150, 840, 400);
-        scrollPane.setBorder(BorderFactory.createLineBorder(new Color(200, 200, 200)));
-        add(scrollPane);
-    }// </editor-fold>//GEN-END:initComponents
+    // ==================== SETUP METHODS ====================
+    
+    private void setupButtonListeners() {
+        // Remove existing listeners
+        for (ActionListener al : btnSearch.getActionListeners()) {
+            btnSearch.removeActionListener(al);
+        }
+        for (ActionListener al : btnRefresh.getActionListeners()) {
+            btnRefresh.removeActionListener(al);
+        }
+        for (ActionListener al : btnAdd.getActionListeners()) {
+            btnAdd.removeActionListener(al);
+        }
+        for (ActionListener al : btnEdit.getActionListeners()) {
+            btnEdit.removeActionListener(al);
+        }
+        for (ActionListener al : btnDelete.getActionListeners()) {
+            btnDelete.removeActionListener(al);
+        }
+        for (ActionListener al : btnViewWatches.getActionListeners()) {
+            btnViewWatches.removeActionListener(al);
+        }
+        
+        // Add new listeners
+        btnSearch.addActionListener(e -> searchProducts());
+        btnRefresh.addActionListener(e -> loadProductData());
+        btnAdd.addActionListener(e -> addProduct());
+        btnEdit.addActionListener(e -> editProduct());
+        btnDelete.addActionListener(e -> deleteProduct());
+        btnViewWatches.addActionListener(e -> openWatchViewer());
+    }
+    
+    private void setupButtonHoverEffects() {
+        addButtonHoverEffect(btnSearch, new Color(255, 215, 0), new Color(255, 240, 150));
+        addButtonHoverEffect(btnRefresh, new Color(100, 100, 100), new Color(130, 130, 130));
+        addButtonHoverEffect(btnAdd, new Color(0, 150, 0), new Color(0, 180, 0));
+        addButtonHoverEffect(btnEdit, new Color(255, 150, 0), new Color(255, 180, 0));
+        addButtonHoverEffect(btnDelete, new Color(200, 0, 0), new Color(230, 0, 0));
+        addButtonHoverEffect(btnViewWatches, new Color(20, 40, 60), new Color(40, 60, 80));
+    }
 
     private void addButtonHoverEffect(JButton button, Color baseColor, Color hoverColor) {
         button.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseEntered(MouseEvent evt) {
                 button.setBackground(hoverColor);
+                if (baseColor.equals(new Color(255, 215, 0))) {
+                    button.setForeground(Color.BLACK);
+                }
             }
 
             @Override
             public void mouseExited(MouseEvent evt) {
                 button.setBackground(baseColor);
+                if (baseColor.equals(new Color(255, 215, 0))) {
+                    button.setForeground(new Color(40, 40, 40));
+                } else if (baseColor.equals(new Color(20, 40, 60))) {
+                    button.setForeground(new Color(255, 215, 0));
+                } else {
+                    button.setForeground(Color.WHITE);
+                }
             }
         });
     }
 
-    private void loadProductData() {
+
+    /**
+     * NetBeans generated code
+     */
+    // <editor-fold defaultstate="collapsed" desc="Generated Code">//GEN-BEGIN:initComponents
+    private void initComponents() {
+
+        lblTitle = new javax.swing.JLabel();
+        separator = new javax.swing.JSeparator();
+        searchPanel = new javax.swing.JPanel();
+        lblSearch = new javax.swing.JLabel();
+        txtSearch = new javax.swing.JTextField();
+        btnSearch = new javax.swing.JButton();
+        btnRefresh = new javax.swing.JButton();
+        buttonPanel = new javax.swing.JPanel();
+        btnAdd = new javax.swing.JButton();
+        btnEdit = new javax.swing.JButton();
+        btnDelete = new javax.swing.JButton();
+        btnViewWatches = new javax.swing.JButton();
+        scrollPane = new javax.swing.JScrollPane();
+        productTable = new javax.swing.JTable();
+
+        setBackground(new java.awt.Color(240, 240, 245));
+        setPreferredSize(new java.awt.Dimension(900, 600));
+        setLayout(null);
+
+        lblTitle.setFont(new java.awt.Font("Serif", 1, 28)); // NOI18N
+        lblTitle.setForeground(new java.awt.Color(20, 40, 60));
+        lblTitle.setText("Product Inventory");
+        add(lblTitle);
+        lblTitle.setBounds(10, 20, 221, 37);
+
+        separator.setForeground(new java.awt.Color(255, 215, 0));
+        add(separator);
+        separator.setBounds(10, 60, 230, 10);
+
+        searchPanel.setBackground(new java.awt.Color(240, 240, 245));
+        searchPanel.setLayout(null);
+
+        lblSearch.setFont(new java.awt.Font("SansSerif", 0, 14)); // NOI18N
+        lblSearch.setText("Search:");
+        searchPanel.add(lblSearch);
+        lblSearch.setBounds(0, 0, 49, 19);
+
+        txtSearch.setBorder(javax.swing.BorderFactory.createCompoundBorder());
+        searchPanel.add(txtSearch);
+        txtSearch.setBounds(50, 0, 130, 30);
+
+        btnSearch.setBackground(new java.awt.Color(255, 215, 0));
+        btnSearch.setFont(new java.awt.Font("SansSerif", 1, 11)); // NOI18N
+        btnSearch.setForeground(new java.awt.Color(40, 40, 40));
+        btnSearch.setText("SEARCH");
+        searchPanel.add(btnSearch);
+        btnSearch.setBounds(200, 0, 90, 30);
+
+        btnRefresh.setBackground(new java.awt.Color(100, 100, 100));
+        btnRefresh.setFont(new java.awt.Font("SansSerif", 1, 11)); // NOI18N
+        btnRefresh.setForeground(new java.awt.Color(255, 255, 255));
+        btnRefresh.setText("REFRESH");
+        searchPanel.add(btnRefresh);
+        btnRefresh.setBounds(310, 0, 90, 30);
+
+        add(searchPanel);
+        searchPanel.setBounds(10, 80, 430, 30);
+
+        buttonPanel.setBackground(new java.awt.Color(240, 240, 245));
+        buttonPanel.setLayout(null);
+
+        btnAdd.setBackground(new java.awt.Color(0, 150, 0));
+        btnAdd.setFont(new java.awt.Font("SansSerif", 1, 11)); // NOI18N
+        btnAdd.setForeground(new java.awt.Color(255, 255, 255));
+        btnAdd.setText("ADD");
+        buttonPanel.add(btnAdd);
+        btnAdd.setBounds(0, 0, 80, 30);
+
+        btnEdit.setBackground(new java.awt.Color(255, 150, 0));
+        btnEdit.setFont(new java.awt.Font("SansSerif", 1, 11)); // NOI18N
+        btnEdit.setForeground(new java.awt.Color(255, 255, 255));
+        btnEdit.setText("EDIT");
+        buttonPanel.add(btnEdit);
+        btnEdit.setBounds(100, 0, 80, 30);
+
+        btnDelete.setBackground(new java.awt.Color(200, 0, 0));
+        btnDelete.setFont(new java.awt.Font("SansSerif", 1, 11)); // NOI18N
+        btnDelete.setForeground(new java.awt.Color(255, 255, 255));
+        btnDelete.setText("DELETE");
+        buttonPanel.add(btnDelete);
+        btnDelete.setBounds(300, 0, 80, 30);
+
+        btnViewWatches.setBackground(new java.awt.Color(20, 40, 60));
+        btnViewWatches.setFont(new java.awt.Font("SansSerif", 1, 11)); // NOI18N
+        btnViewWatches.setForeground(new java.awt.Color(255, 215, 0));
+        btnViewWatches.setText("VIEW");
+        buttonPanel.add(btnViewWatches);
+        btnViewWatches.setBounds(200, 0, 80, 30);
+
+        add(buttonPanel);
+        buttonPanel.setBounds(10, 360, 450, 30);
+
+        scrollPane.setBorder(javax.swing.BorderFactory.createLineBorder(new java.awt.Color(0, 0, 0)));
+
+        productTable.setModel(new javax.swing.table.DefaultTableModel(
+            new Object [][] {
+
+            },
+            new String [] {
+                "Watch ID", "Brand", "Model", "Price", "Stock", "Description"
+            }
+        ) {
+            boolean[] canEdit = new boolean [] {
+                false, false, false, false, false, false
+            };
+
+            public boolean isCellEditable(int rowIndex, int columnIndex) {
+                return canEdit [columnIndex];
+            }
+        });
+        scrollPane.setViewportView(productTable);
+
+        add(scrollPane);
+        scrollPane.setBounds(10, 120, 760, 230);
+    }// </editor-fold>//GEN-END:initComponents
+
+
+   private void loadProductData() {
         try {
             ResultSet rs = Config.getAllProducts();
             DefaultTableModel model = (DefaultTableModel) productTable.getModel();
@@ -208,7 +256,7 @@ public class ProductManagementPanel extends JPanel {
             
             while (rs.next()) {
                 Object[] row = {
-                    rs.getInt("Watch_ID"),
+                    "PRD" + rs.getInt("Watch_ID"),
                     rs.getString("Brand"),
                     rs.getString("Model_Name"),
                     String.format("$%.2f", rs.getDouble("Price")),
@@ -225,6 +273,7 @@ public class ProductManagementPanel extends JPanel {
             
         } catch (Exception e) {
             e.printStackTrace();
+            JOptionPane.showMessageDialog(this, "Error loading product data: " + e.getMessage());
         }
     }
 
@@ -262,7 +311,7 @@ public class ProductManagementPanel extends JPanel {
             
             while (rs.next()) {
                 Object[] row = {
-                    rs.getInt("Watch_ID"),
+                    "PRD" + rs.getInt("Watch_ID"),
                     rs.getString("Brand"),
                     rs.getString("Model_Name"),
                     String.format("$%.2f", rs.getDouble("Price")),
@@ -271,8 +320,13 @@ public class ProductManagementPanel extends JPanel {
                 };
                 model.addRow(row);
             }
+            
+            if (model.getRowCount() == 0) {
+                JOptionPane.showMessageDialog(this, "No products found matching: " + searchTerm);
+            }
         } catch (Exception e) {
             e.printStackTrace();
+            JOptionPane.showMessageDialog(this, "Error searching products: " + e.getMessage());
         }
     }
 
@@ -289,7 +343,8 @@ public class ProductManagementPanel extends JPanel {
             return;
         }
         
-        int watchId = Integer.parseInt(productTable.getValueAt(selectedRow, 0).toString());
+        String watchIdStr = productTable.getValueAt(selectedRow, 0).toString().replace("PRD", "");
+        int watchId = Integer.parseInt(watchIdStr);
         ProductDialog dialog = new ProductDialog(watchId);
         dialog.setVisible(true);
         loadProductData();
@@ -302,13 +357,17 @@ public class ProductManagementPanel extends JPanel {
             return;
         }
         
+        String productName = productTable.getValueAt(selectedRow, 1).toString() + " " + 
+                             productTable.getValueAt(selectedRow, 2).toString();
+        
         int confirm = JOptionPane.showConfirmDialog(this, 
-            "Are you sure you want to delete this product?", 
+            "Are you sure you want to delete: " + productName + "?", 
             "Confirm Delete", 
             JOptionPane.YES_NO_OPTION);
             
         if (confirm == JOptionPane.YES_OPTION) {
-            int watchId = Integer.parseInt(productTable.getValueAt(selectedRow, 0).toString());
+            String watchIdStr = productTable.getValueAt(selectedRow, 0).toString().replace("PRD", "");
+            int watchId = Integer.parseInt(watchIdStr);
             if (Config.deleteProduct(watchId)) {
                 JOptionPane.showMessageDialog(this, "Product deleted successfully!");
                 loadProductData();
@@ -321,7 +380,8 @@ public class ProductManagementPanel extends JPanel {
     private void viewProductDetails() {
         int selectedRow = productTable.getSelectedRow();
         if (selectedRow >= 0) {
-            int watchId = Integer.parseInt(productTable.getValueAt(selectedRow, 0).toString());
+            String watchIdStr = productTable.getValueAt(selectedRow, 0).toString().replace("PRD", "");
+            int watchId = Integer.parseInt(watchIdStr);
             showWatchDetails(watchId);
         }
     }
@@ -1027,8 +1087,13 @@ public class ProductManagementPanel extends JPanel {
     private javax.swing.JButton btnRefresh;
     private javax.swing.JButton btnSearch;
     private javax.swing.JButton btnViewWatches;
+    private javax.swing.JPanel buttonPanel;
+    private javax.swing.JLabel lblSearch;
+    private javax.swing.JLabel lblTitle;
     private javax.swing.JTable productTable;
     private javax.swing.JScrollPane scrollPane;
+    private javax.swing.JPanel searchPanel;
+    private javax.swing.JSeparator separator;
     private javax.swing.JTextField txtSearch;
     // End of variables declaration//GEN-END:variables
 }

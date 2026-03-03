@@ -70,7 +70,7 @@ public class UserManagementPanel extends JPanel {
 
         separator.setForeground(new java.awt.Color(255, 215, 0));
         add(separator);
-        separator.setBounds(0, 0, 0, 2);
+        separator.setBounds(10, 60, 220, 10);
 
         searchPanel.setBackground(new java.awt.Color(240, 240, 245));
         searchPanel.setLayout(null);
@@ -111,7 +111,7 @@ public class UserManagementPanel extends JPanel {
         btnAdd.setBackground(new java.awt.Color(0, 150, 0));
         btnAdd.setText("ADD");
         buttonPanel.add(btnAdd);
-        btnAdd.setBounds(10, 0, 90, 30);
+        btnAdd.setBounds(0, 0, 90, 30);
 
         btnEdit.setBackground(new java.awt.Color(255, 150, 0));
         btnEdit.setText("EDIT");
@@ -121,7 +121,7 @@ public class UserManagementPanel extends JPanel {
             }
         });
         buttonPanel.add(btnEdit);
-        btnEdit.setBounds(130, 0, 90, 30);
+        btnEdit.setBounds(120, 0, 90, 30);
 
         btnDelete.setBackground(new java.awt.Color(200, 0, 0));
         btnDelete.setText("DELETE");
@@ -131,7 +131,7 @@ public class UserManagementPanel extends JPanel {
             }
         });
         buttonPanel.add(btnDelete);
-        btnDelete.setBounds(240, 0, 100, 30);
+        btnDelete.setBounds(240, 0, 90, 30);
 
         add(buttonPanel);
         buttonPanel.setBounds(10, 360, 350, 30);

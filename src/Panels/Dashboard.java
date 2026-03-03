@@ -3,12 +3,9 @@ package Panels;
 import Config.Config;
 import java.awt.*;
 import java.awt.event.*;
-import java.awt.image.BufferedImage;
 import java.io.File;
 import java.sql.ResultSet;
-import javax.imageio.ImageIO;
 import javax.swing.*;
-import javax.swing.border.*;
 
 public class Dashboard extends JFrame {
     private Timer slideTimer;
@@ -38,7 +35,6 @@ public Dashboard() {
     addHoverEffect(btnTransactions);
     addHoverEffect(btnAuthorization);
     addHoverEffect(btnShipping);
-    addHoverEffect(btnReceipts);
     addLogoutHoverEffect(btnLogout);
 }
     private void setupButtonActions() {
@@ -90,12 +86,6 @@ public Dashboard() {
     btnShipping.addActionListener(new ActionListener() {
         public void actionPerformed(ActionEvent evt) {
             showPanel(new ShippingPanel(Dashboard.this));
-        }
-    });
-    
-    btnReceipts.addActionListener(new ActionListener() {
-        public void actionPerformed(ActionEvent evt) {
-            showPanel(new ReceiptPanel(Dashboard.this));
         }
     });
     
@@ -153,7 +143,6 @@ private void addLogoutHoverEffect(JButton button) {
         btnTransactions = new javax.swing.JButton();
         btnAuthorization = new javax.swing.JButton();
         btnShipping = new javax.swing.JButton();
-        btnReceipts = new javax.swing.JButton();
         btnLogout = new javax.swing.JButton();
         lblUserIcon = new javax.swing.JLabel();
         lblWelcome = new javax.swing.JLabel();
@@ -170,8 +159,8 @@ private void addLogoutHoverEffect(JButton button) {
         headerPanel.setPreferredSize(new java.awt.Dimension(1200, 60));
         headerPanel.setLayout(null);
 
-        lblWelcome1.setFont(new java.awt.Font("Times New Roman", 3, 24)); // NOI18N
-        lblWelcome1.setForeground(new java.awt.Color(255, 255, 255));
+        lblWelcome1.setFont(new java.awt.Font("Times New Roman", 1, 24)); // NOI18N
+        lblWelcome1.setForeground(new java.awt.Color(255, 153, 0));
         lblWelcome1.setText("Velocity Watch Corporation ");
         headerPanel.add(lblWelcome1);
         lblWelcome1.setBounds(20, 10, 310, 40);
@@ -239,7 +228,7 @@ private void addLogoutHoverEffect(JButton button) {
         btnAuthorization.setBorderPainted(false);
         btnAuthorization.setFocusPainted(false);
         sidebarPanel.add(btnAuthorization);
-        btnAuthorization.setBounds(10, 310, 90, 30);
+        btnAuthorization.setBounds(90, 310, 90, 30);
 
         btnShipping.setBackground(new java.awt.Color(64, 64, 80));
         btnShipping.setFont(new java.awt.Font("SansSerif", 1, 12)); // NOI18N
@@ -254,15 +243,6 @@ private void addLogoutHoverEffect(JButton button) {
         });
         sidebarPanel.add(btnShipping);
         btnShipping.setBounds(20, 190, 160, 30);
-
-        btnReceipts.setBackground(new java.awt.Color(64, 64, 80));
-        btnReceipts.setFont(new java.awt.Font("SansSerif", 1, 12)); // NOI18N
-        btnReceipts.setForeground(new java.awt.Color(255, 255, 255));
-        btnReceipts.setText("RECEIPTS");
-        btnReceipts.setBorderPainted(false);
-        btnReceipts.setFocusPainted(false);
-        sidebarPanel.add(btnReceipts);
-        btnReceipts.setBounds(100, 310, 90, 30);
 
         btnLogout.setBackground(new java.awt.Color(150, 50, 50));
         btnLogout.setFont(new java.awt.Font("SansSerif", 1, 12)); // NOI18N
@@ -428,7 +408,6 @@ private void setDefaultUserIcon() {
     private javax.swing.JButton btnLogout;
     private javax.swing.JButton btnProducts;
     private javax.swing.JButton btnProfile;
-    private javax.swing.JButton btnReceipts;
     private javax.swing.JButton btnShipping;
     private javax.swing.JButton btnTransactions;
     private javax.swing.JButton btnUsers;
