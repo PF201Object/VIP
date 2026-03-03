@@ -482,7 +482,7 @@ public class ProductManagementPanel extends JPanel {
         watchViewerDialog.add(mainPanel);
     }
 
-    private JPanel createWatchCard(WatchData watch) {
+ private JPanel createWatchCard(WatchData watch) {
     JPanel card = new JPanel(null) {
         @Override
         protected void paintComponent(Graphics g) {
@@ -517,7 +517,7 @@ public class ProductManagementPanel extends JPanel {
     
     // Image Panel
     JPanel imagePanel = new JPanel(new BorderLayout());
-    imagePanel.setBounds(centerX - 100, y, 200, 120);
+    imagePanel.setBounds(centerX - 100, y, 200, 130);
     imagePanel.setBackground(new Color(30, 30, 40));
     imagePanel.setBorder(BorderFactory.createLineBorder(new Color(255, 215, 0), 2));
     
@@ -530,20 +530,26 @@ public class ProductManagementPanel extends JPanel {
     
     if (imagePath != null && !imagePath.isEmpty()) {
         File imageFile = new File(imagePath);
+        // Try with project path if relative path doesn't work
+        if (!imageFile.exists()) {
+            String projectPath = System.getProperty("user.dir");
+            imageFile = new File(projectPath + File.separator + imagePath);
+        }
+        
         if (imageFile.exists()) {
             // Load and scale the image
-            ImageIcon originalIcon = new ImageIcon(imagePath);
-            Image scaledImage = originalIcon.getImage().getScaledInstance(180, 100, Image.SCALE_SMOOTH);
+            ImageIcon originalIcon = new ImageIcon(imageFile.getAbsolutePath());
+            Image scaledImage = originalIcon.getImage().getScaledInstance(180, 120, Image.SCALE_SMOOTH);
             ImageIcon scaledIcon = new ImageIcon(scaledImage);
             lblImage.setIcon(scaledIcon);
             lblImage.setText("");
             imageLoaded = true;
-            System.out.println("Image loaded successfully: " + imagePath); // Debug line
+            System.out.println("Image loaded successfully: " + imageFile.getAbsolutePath());
         } else {
-            System.out.println("Image file not found: " + imagePath); // Debug line
+            System.out.println("Image file not found: " + imagePath);
         }
     } else {
-        System.out.println("No image path for watch " + watch.getId()); // Debug line
+        System.out.println("No image path for watch " + watch.getId());
     }
     
     // If no image loaded, draw the default watch face
@@ -555,7 +561,7 @@ public class ProductManagementPanel extends JPanel {
     card.add(imagePanel);
     y += 135;
     
-    // Details Panel (rest of the code remains the same)
+    // Details Panel
     JPanel detailsPanel = new JPanel(new GridLayout(4, 2, 5, 5));
     detailsPanel.setBounds(centerX - 120, y, 240, 100);
     detailsPanel.setOpaque(false);
@@ -915,29 +921,56 @@ public class ProductManagementPanel extends JPanel {
             ));
         }
 
-        private void importImage() {
-            JFileChooser fileChooser = new JFileChooser();
-            fileChooser.setDialogTitle("Select Product Image");
-            fileChooser.setFileFilter(new FileNameExtensionFilter("Image Files", "jpg", "jpeg", "png", "gif", "bmp"));
-            
-            int result = fileChooser.showOpenDialog(this);
-            if (result == JFileChooser.APPROVE_OPTION) {
-                File selectedFile = fileChooser.getSelectedFile();
-                imagePath = selectedFile.getAbsolutePath();
-                
-                // Display image in preview
-                ImageIcon icon = ImageUtils.getScaledIcon(imagePath, 100, 80);
-                if (icon != null) {
-                    lblImagePreview.setIcon(icon);
-                    lblImagePreview.setText("");
-                } else {
-                    lblImagePreview.setIcon(null);
-                    lblImagePreview.setText("Error loading image");
-                }
-            }
+       private void importImage() {
+    JFileChooser fileChooser = new JFileChooser();
+    fileChooser.setDialogTitle("Select Product Image");
+    fileChooser.setFileFilter(new FileNameExtensionFilter("Image Files", "jpg", "jpeg", "png", "gif", "bmp"));
+    
+    int result = fileChooser.showOpenDialog(this);
+    if (result == JFileChooser.APPROVE_OPTION) {
+        File selectedFile = fileChooser.getSelectedFile();
+        
+        // Create target directory if it doesn't exist
+        String projectPath = System.getProperty("user.dir");
+        String targetDir = projectPath + File.separator + "src" + File.separator + "Watches" + File.separator + "Image";
+        File dir = new File(targetDir);
+        if (!dir.exists()) {
+            dir.mkdirs();
         }
+        
+        // Generate unique filename
+        String fileName = "watch_" + System.currentTimeMillis() + getFileExtension(selectedFile.getName());
+        File targetFile = new File(targetDir + File.separator + fileName);
+        
+        try {
+            // Copy file to target directory
+            java.nio.file.Files.copy(selectedFile.toPath(), targetFile.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            
+            // Store relative path in database
+            imagePath = "src/Watches/Image/" + fileName;
+            
+            // Display image in preview
+            ImageIcon icon = ImageUtils.getScaledIcon(imagePath, 100, 80);
+            if (icon != null) {
+                lblImagePreview.setIcon(icon);
+                lblImagePreview.setText("");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(this, "Error saving image: " + e.getMessage());
+        }
+    }
+}
 
-        private void loadProductData() {
+private String getFileExtension(String filename) {
+    int lastDot = filename.lastIndexOf('.');
+    if (lastDot > 0) {
+        return filename.substring(lastDot);
+    }
+    return ".jpg";
+}
+
+    private void loadProductData() {
     try {
         ResultSet rs = Config.getAllProducts();
         while (rs.next()) {
@@ -951,8 +984,14 @@ public class ProductManagementPanel extends JPanel {
                 imagePath = rs.getString("Image_Path");
                 if (imagePath != null && !imagePath.isEmpty()) {
                     File imageFile = new File(imagePath);
+                    // Also try checking in the project root if relative path doesn't work
+                    if (!imageFile.exists()) {
+                        String projectPath = System.getProperty("user.dir");
+                        imageFile = new File(projectPath + File.separator + imagePath);
+                    }
+                    
                     if (imageFile.exists()) {
-                        ImageIcon icon = ImageUtils.getScaledIcon(imagePath, 100, 80);
+                        ImageIcon icon = ImageUtils.getScaledIcon(imageFile.getAbsolutePath(), 100, 80);
                         if (icon != null) {
                             lblImagePreview.setIcon(icon);
                             lblImagePreview.setText("");

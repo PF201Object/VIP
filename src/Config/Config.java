@@ -20,7 +20,7 @@ public class Config {
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("PRAGMA busy_timeout = 30000;");
                 stmt.execute("PRAGMA journal_mode = WAL;");
-                stmt.execute("PRAGMA foreign_keys = ON;");
+                // Don't enable foreign keys here - we'll do it after cleanup
             }
             synchronized (activeConnections) {
                 activeConnections.add(conn);
@@ -110,6 +110,11 @@ public class Config {
             conn = connect();
             if (conn == null) return;
             
+            // Disable foreign keys temporarily
+            try (Statement tempStmt = conn.createStatement()) {
+                tempStmt.execute("PRAGMA foreign_keys = OFF;");
+            }
+            
             stmt = conn.createStatement();
             
             String usersTable = "CREATE TABLE IF NOT EXISTS Users ("
@@ -123,13 +128,12 @@ public class Config {
 
             String customerTable = "CREATE TABLE IF NOT EXISTS Customer ("
                 + "Customer_ID INTEGER PRIMARY KEY AUTOINCREMENT,"
-                + "User_ID INTEGER UNIQUE,"
                 + "First_Name TEXT NOT NULL,"
                 + "Last_Name TEXT NOT NULL,"
+                + "Email TEXT,"
                 + "Phone_Number TEXT,"
                 + "Default_Address TEXT,"
-                + "Join_Date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
-                + "FOREIGN KEY (User_ID) REFERENCES Users(User_ID) ON DELETE CASCADE);";
+                + "Join_Date TIMESTAMP DEFAULT CURRENT_TIMESTAMP);";
 
             String productTable = "CREATE TABLE IF NOT EXISTS Product ("
                 + "Watch_ID INTEGER PRIMARY KEY AUTOINCREMENT,"
@@ -147,18 +151,16 @@ public class Config {
                 + "Order_Date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
                 + "Payment_Method TEXT,"
                 + "Status TEXT DEFAULT 'Pending',"
-                + "Created_By INTEGER,"
-                + "FOREIGN KEY (Customer_ID) REFERENCES Customer(Customer_ID) ON DELETE CASCADE,"
-                + "FOREIGN KEY (Created_By) REFERENCES Users(User_ID) ON DELETE SET NULL);";
+                + "Created_By INTEGER);";
+            // FOREIGN KEY temporarily removed
 
             String orderItemsTable = "CREATE TABLE IF NOT EXISTS Order_Items ("
                 + "Item_ID INTEGER PRIMARY KEY AUTOINCREMENT,"
                 + "Transaction_ID INTEGER NOT NULL,"
                 + "Watch_ID INTEGER NOT NULL,"
                 + "Quantity INTEGER NOT NULL,"
-                + "Price_At_Purchase REAL NOT NULL,"
-                + "FOREIGN KEY (Transaction_ID) REFERENCES `Transaction`(Transaction_ID) ON DELETE CASCADE,"
-                + "FOREIGN KEY (Watch_ID) REFERENCES Product(Watch_ID) ON DELETE CASCADE);";
+                + "Price_At_Purchase REAL NOT NULL);";
+            // FOREIGN KEY temporarily removed
 
             String shippingTable = "CREATE TABLE IF NOT EXISTS Shipping ("
                 + "Ship_ID INTEGER PRIMARY KEY AUTOINCREMENT,"
@@ -168,8 +170,8 @@ public class Config {
                 + "Shipping_Status TEXT DEFAULT 'Processing',"
                 + "Shipping_Address TEXT,"
                 + "Shipped_Date TIMESTAMP,"
-                + "Estimated_Delivery DATE,"
-                + "FOREIGN KEY (Transaction_ID) REFERENCES `Transaction`(Transaction_ID) ON DELETE CASCADE);";
+                + "Estimated_Delivery DATE);";
+            // FOREIGN KEY temporarily removed
 
             stmt.execute(usersTable);
             stmt.execute(customerTable);
@@ -182,10 +184,21 @@ public class Config {
             stmt.execute("CREATE INDEX IF NOT EXISTS idx_transaction_status ON `Transaction`(Status);");
             stmt.execute("CREATE INDEX IF NOT EXISTS idx_order_items_transaction ON Order_Items(Transaction_ID);");
             
+            // Insert sample data first (while foreign keys are disabled)
+            insertSampleData(conn);
+            
+            addEmailColumnToCustomer();
+            // Clean up invalid data
+            cleanupInvalidData(conn);
+            
             // Set sequence to start from 1000 for Users
             stmt.execute("UPDATE sqlite_sequence SET seq = 999 WHERE name = 'Users';");
             
-            insertSampleData(conn);
+            // Re-enable foreign keys
+            try (Statement tempStmt = conn.createStatement()) {
+                tempStmt.execute("PRAGMA foreign_keys = ON;");
+                System.out.println("Foreign keys enabled.");
+            }
             
         } catch (SQLException e) {
             System.err.println("DB Init Error: " + e.getMessage());
@@ -193,6 +206,52 @@ public class Config {
         } finally {
             closeStatement(stmt);
             closeConnection(conn);
+        }
+    }
+
+    private static void cleanupInvalidData(Connection conn) {
+        Statement stmt = null;
+        try {
+            stmt = conn.createStatement();
+            
+            System.out.println("\n=== CLEANING UP INVALID DATA ===");
+            
+            // Delete customers with no matching user
+            int deleted = stmt.executeUpdate(
+                "DELETE FROM Customer WHERE User_ID IS NOT NULL AND User_ID NOT IN (SELECT User_ID FROM Users)"
+            );
+            if (deleted > 0) System.out.println("Deleted " + deleted + " orphaned customers");
+            
+            // Delete transactions with invalid customer IDs
+            deleted = stmt.executeUpdate(
+                "DELETE FROM `Transaction` WHERE Customer_ID NOT IN (SELECT Customer_ID FROM Customer)"
+            );
+            if (deleted > 0) System.out.println("Deleted " + deleted + " orphaned transactions");
+            
+            // Delete order items with invalid transaction IDs
+            deleted = stmt.executeUpdate(
+                "DELETE FROM Order_Items WHERE Transaction_ID NOT IN (SELECT Transaction_ID FROM `Transaction`)"
+            );
+            if (deleted > 0) System.out.println("Deleted " + deleted + " orphaned order items");
+            
+            // Delete order items with invalid product IDs
+            deleted = stmt.executeUpdate(
+                "DELETE FROM Order_Items WHERE Watch_ID NOT IN (SELECT Watch_ID FROM Product)"
+            );
+            if (deleted > 0) System.out.println("Deleted " + deleted + " order items with invalid products");
+            
+            // Delete shipping records with invalid transaction IDs
+            deleted = stmt.executeUpdate(
+                "DELETE FROM Shipping WHERE Transaction_ID NOT IN (SELECT Transaction_ID FROM `Transaction`)"
+            );
+            if (deleted > 0) System.out.println("Deleted " + deleted + " orphaned shipping records");
+            
+            System.out.println("=== CLEANUP COMPLETE ===\n");
+            
+        } catch (SQLException e) {
+            System.err.println("Cleanup Error: " + e.getMessage());
+        } finally {
+            closeStatement(stmt);
         }
     }
 
@@ -230,9 +289,15 @@ public class Config {
                 ResultSet keys = stmt.executeQuery("SELECT last_insert_rowid()");
                 if (keys.next()) {
                     int adminId = keys.getInt(1);
-                    String insertAdminCustomer = "INSERT INTO Customer (User_ID, First_Name, Last_Name, Phone_Number, Default_Address) VALUES " +
-                        "(" + adminId + ", 'System', 'Administrator', '123-456-7890', 'Admin Office')";
-                    stmt.executeUpdate(insertAdminCustomer);
+                    
+                    // Check if customer already exists
+                    ResultSet checkCustomer = stmt.executeQuery("SELECT COUNT(*) FROM Customer WHERE User_ID = " + adminId);
+                    if (checkCustomer.next() && checkCustomer.getInt(1) == 0) {
+                        String insertAdminCustomer = "INSERT INTO Customer (User_ID, First_Name, Last_Name, Phone_Number, Default_Address) VALUES " +
+                            "(" + adminId + ", 'System', 'Administrator', '123-456-7890', 'Admin Office')";
+                        stmt.executeUpdate(insertAdminCustomer);
+                    }
+                    closeResultSet(checkCustomer);
                 }
                 closeResultSet(keys);
             }
@@ -245,168 +310,211 @@ public class Config {
         }
     }
 
-    // UPDATED: Removed role and address parameters
-    // UPDATED: Removed role and address parameters with debugging
-public static boolean registerUser(String username, String email, String password,
-                                  String firstName, String lastName, String phone) {
-    Connection conn = null;
-    PreparedStatement pstmt = null;
-    ResultSet rs = null;
-    
-    try {
-        conn = connect();
-        if (conn == null) {
-            System.err.println("Failed to connect to database");
-            return false;
-        }
+    public static boolean registerUser(String username, String email, String password,
+                                      String firstName, String lastName, String phone) {
+        Connection conn = null;
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
         
-        conn.setAutoCommit(false);
-        
-        // First check if username or email already exists
-        if (isUsernameExists(username)) {
-            System.err.println("Username already exists: " + username);
-            return false;
-        }
-        if (isEmailExists(email)) {
-            System.err.println("Email already exists: " + email);
-            return false;
-        }
-        
-        // Insert into Users table with default role 'User'
-        String userSql = "INSERT INTO Users (Username, Email, Password_Hash, Role) VALUES (?, ?, ?, ?)";
-        pstmt = conn.prepareStatement(userSql);
-        pstmt.setString(1, username);
-        pstmt.setString(2, email);
-        pstmt.setString(3, password);
-        pstmt.setString(4, "User");
-        int userResult = pstmt.executeUpdate();
-        
-        if (userResult == 0) {
-            conn.rollback();
-            return false;
-        }
-        
-        closeStatement(pstmt);
-        
-        // Get the last insert ID
-        pstmt = conn.prepareStatement("SELECT last_insert_rowid()");
-        rs = pstmt.executeQuery();
-        int userId = -1;
-        if (rs.next()) {
-            userId = rs.getInt(1);
-        }
-        closeResultSet(rs);
-        closeStatement(pstmt);
-        
-        if (userId == -1) {
-            conn.rollback();
-            return false;
-        }
-        
-        // Insert into Customer table with empty address
-        String customerSql = "INSERT INTO Customer (User_ID, First_Name, Last_Name, Phone_Number, Default_Address, Join_Date) VALUES (?, ?, ?, ?, ?, datetime('now'))";
-        pstmt = conn.prepareStatement(customerSql);
-        pstmt.setInt(1, userId);
-        pstmt.setString(2, firstName);
-        pstmt.setString(3, lastName);
-        pstmt.setString(4, phone);
-        pstmt.setString(5, "");
-        int customerResult = pstmt.executeUpdate();
-        
-        if (customerResult == 0) {
-            conn.rollback();
-            return false;
-        }
-        
-        conn.commit();
-        return true;
-        
-    } catch (SQLException e) {
-        System.err.println("Registration Error: " + e.getMessage());
-        if (conn != null) {
-            try {
-                conn.rollback();
-            } catch (SQLException ex) {
-                System.err.println("Rollback Error: " + ex.getMessage());
+        try {
+            conn = connect();
+            if (conn == null) {
+                System.err.println("Failed to connect to database");
+                return false;
             }
+            
+            // Temporarily disable foreign keys for this operation
+            try (Statement tempStmt = conn.createStatement()) {
+                tempStmt.execute("PRAGMA foreign_keys = OFF;");
+            }
+            
+            conn.setAutoCommit(false);
+            
+            // First check if username or email already exists
+            if (isUsernameExists(username)) {
+                System.err.println("Username already exists: " + username);
+                return false;
+            }
+            if (isEmailExists(email)) {
+                System.err.println("Email already exists: " + email);
+                return false;
+            }
+            
+            // Insert into Users table with default role 'User'
+            String userSql = "INSERT INTO Users (Username, Email, Password_Hash, Role) VALUES (?, ?, ?, ?)";
+            pstmt = conn.prepareStatement(userSql);
+            pstmt.setString(1, username);
+            pstmt.setString(2, email);
+            pstmt.setString(3, password);
+            pstmt.setString(4, "User");
+            int userResult = pstmt.executeUpdate();
+            
+            if (userResult == 0) {
+                conn.rollback();
+                return false;
+            }
+            
+            closeStatement(pstmt);
+            
+            // Get the last insert ID
+            pstmt = conn.prepareStatement("SELECT last_insert_rowid()");
+            rs = pstmt.executeQuery();
+            int userId = -1;
+            if (rs.next()) {
+                userId = rs.getInt(1);
+            }
+            closeResultSet(rs);
+            closeStatement(pstmt);
+            
+            if (userId == -1) {
+                conn.rollback();
+                return false;
+            }
+            
+            // Insert into Customer table with empty address
+            String customerSql = "INSERT INTO Customer (User_ID, First_Name, Last_Name, Phone_Number, Default_Address, Join_Date) VALUES (?, ?, ?, ?, ?, datetime('now'))";
+            pstmt = conn.prepareStatement(customerSql);
+            pstmt.setInt(1, userId);
+            pstmt.setString(2, firstName);
+            pstmt.setString(3, lastName);
+            pstmt.setString(4, phone);
+            pstmt.setString(5, "");
+            int customerResult = pstmt.executeUpdate();
+            
+            if (customerResult == 0) {
+                conn.rollback();
+                return false;
+            }
+            
+            conn.commit();
+            
+            // Re-enable foreign keys
+            try (Statement tempStmt = conn.createStatement()) {
+                tempStmt.execute("PRAGMA foreign_keys = ON;");
+            }
+            
+            return true;
+            
+        } catch (SQLException e) {
+            System.err.println("Registration Error: " + e.getMessage());
+            if (conn != null) {
+                try {
+                    conn.rollback();
+                } catch (SQLException ex) {
+                    System.err.println("Rollback Error: " + ex.getMessage());
+                }
+            }
+            return false;
+        } finally {
+            closeResultSet(rs);
+            closeStatement(pstmt);
+            closeConnection(conn);
         }
-        return false;
-    } finally {
-        closeResultSet(rs);
-        closeStatement(pstmt);
-        closeConnection(conn);
     }
-}
-// Add this method to fix any corrupted data in the database
-public static void fixDatabaseConstraints() {
-    Connection conn = null;
-    Statement stmt = null;
-    ResultSet rs = null;
-    
-    try {
-        conn = connect();
-        if (conn == null) return;
+
+    public static void fixDatabaseConstraints() {
+        Connection conn = null;
+        Statement stmt = null;
+        ResultSet rs = null;
         
-        stmt = conn.createStatement();
-        
-        System.out.println("\n=== FIXING DATABASE CONSTRAINTS ===");
-        
-        // Find customers without matching users
-        rs = stmt.executeQuery(
-            "SELECT c.Customer_ID, c.User_ID FROM Customer c " +
-            "LEFT JOIN Users u ON c.User_ID = u.User_ID " +
-            "WHERE u.User_ID IS NULL"
-        );
-        while (rs.next()) {
-            int customerId = rs.getInt("Customer_ID");
-            int userId = rs.getInt("User_ID");
-            System.out.println("Found orphaned customer: CustomerID=" + customerId + ", User_ID=" + userId);
+        try {
+            conn = connect();
+            if (conn == null) return;
             
-            // Delete orphaned customer records
-            int deleted = stmt.executeUpdate("DELETE FROM Customer WHERE Customer_ID = " + customerId);
-            System.out.println("Deleted orphaned customer: " + deleted + " row(s) affected");
-        }
-        closeResultSet(rs);
-        
-        // Find users without customer records and create them
-        rs = stmt.executeQuery(
-            "SELECT u.User_ID, u.Username FROM Users u " +
-            "LEFT JOIN Customer c ON u.User_ID = c.User_ID " +
-            "WHERE c.User_ID IS NULL"
-        );
-        while (rs.next()) {
-            int userId = rs.getInt("User_ID");
-            String username = rs.getString("Username");
-            System.out.println("Found user without customer: ID=" + userId + ", Username=" + username);
+            // Temporarily disable foreign keys
+            try (Statement tempStmt = conn.createStatement()) {
+                tempStmt.execute("PRAGMA foreign_keys = OFF;");
+            }
             
-            // Create default customer record
-            String insertCustomer = "INSERT INTO Customer (User_ID, First_Name, Last_Name, Phone_Number, Default_Address, Join_Date) " +
-                                   "VALUES (" + userId + ", 'System', 'Generated', '', '', datetime('now'))";
-            int inserted = stmt.executeUpdate(insertCustomer);
-            System.out.println("Created default customer: " + inserted + " row(s) affected");
-        }
-        
-        // Reset the auto-increment sequence
-        rs = stmt.executeQuery("SELECT MAX(User_ID) FROM Users");
-        if (rs.next()) {
-            int maxId = rs.getInt(1);
-            System.out.println("Max User_ID in Users table: " + maxId);
+            stmt = conn.createStatement();
             
-            // Update sqlite_sequence
-            stmt.executeUpdate("UPDATE sqlite_sequence SET seq = " + maxId + " WHERE name = 'Users'");
-            System.out.println("Updated sqlite_sequence to " + maxId);
+            System.out.println("\n=== FIXING DATABASE CONSTRAINTS ===");
+            
+            // Find customers without matching users
+            rs = stmt.executeQuery(
+                "SELECT c.Customer_ID, c.User_ID FROM Customer c " +
+                "LEFT JOIN Users u ON c.User_ID = u.User_ID " +
+                "WHERE u.User_ID IS NULL"
+            );
+            while (rs.next()) {
+                int customerId = rs.getInt("Customer_ID");
+                int userId = rs.getInt("User_ID");
+                System.out.println("Found orphaned customer: CustomerID=" + customerId + ", User_ID=" + userId);
+                
+                // Delete orphaned customer records
+                int deleted = stmt.executeUpdate("DELETE FROM Customer WHERE Customer_ID = " + customerId);
+                System.out.println("Deleted orphaned customer: " + deleted + " row(s) affected");
+            }
+            closeResultSet(rs);
+            
+            // Find users without customer records and create them
+            rs = stmt.executeQuery(
+                "SELECT u.User_ID, u.Username FROM Users u " +
+                "LEFT JOIN Customer c ON u.User_ID = c.User_ID " +
+                "WHERE c.User_ID IS NULL"
+            );
+            while (rs.next()) {
+                int userId = rs.getInt("User_ID");
+                String username = rs.getString("Username");
+                System.out.println("Found user without customer: ID=" + userId + ", Username=" + username);
+                
+                // Create default customer record
+                String insertCustomer = "INSERT INTO Customer (User_ID, First_Name, Last_Name, Phone_Number, Default_Address, Join_Date) " +
+                                       "VALUES (" + userId + ", 'System', 'Generated', '', '', datetime('now'))";
+                int inserted = stmt.executeUpdate(insertCustomer);
+                System.out.println("Created default customer: " + inserted + " row(s) affected");
+            }
+            
+            // Fix Transaction foreign keys
+            int deletedTransactions = stmt.executeUpdate(
+                "DELETE FROM `Transaction` WHERE Customer_ID NOT IN (SELECT Customer_ID FROM Customer)"
+            );
+            if (deletedTransactions > 0) {
+                System.out.println("Deleted " + deletedTransactions + " orphaned transaction records");
+            }
+            
+            // Fix Order_Items foreign keys
+            int deletedOrderItems = stmt.executeUpdate(
+                "DELETE FROM Order_Items WHERE Transaction_ID NOT IN (SELECT Transaction_ID FROM `Transaction`)"
+            );
+            if (deletedOrderItems > 0) {
+                System.out.println("Deleted " + deletedOrderItems + " orphaned order item records");
+            }
+            
+            // Fix Shipping foreign keys
+            int deletedShipping = stmt.executeUpdate(
+                "DELETE FROM Shipping WHERE Transaction_ID NOT IN (SELECT Transaction_ID FROM `Transaction`)"
+            );
+            if (deletedShipping > 0) {
+                System.out.println("Deleted " + deletedShipping + " orphaned shipping records");
+            }
+            
+            // Reset the auto-increment sequence
+            rs = stmt.executeQuery("SELECT MAX(User_ID) FROM Users");
+            if (rs.next()) {
+                int maxId = rs.getInt(1);
+                System.out.println("Max User_ID in Users table: " + maxId);
+                
+                // Update sqlite_sequence
+                stmt.executeUpdate("UPDATE sqlite_sequence SET seq = " + maxId + " WHERE name = 'Users'");
+                System.out.println("Updated sqlite_sequence to " + maxId);
+            }
+            
+            // Re-enable foreign keys
+            try (Statement tempStmt = conn.createStatement()) {
+                tempStmt.execute("PRAGMA foreign_keys = ON;");
+            }
+            
+            System.out.println("=== DATABASE FIX COMPLETE ===\n");
+            
+        } catch (SQLException e) {
+            System.err.println("Fix Database Error: " + e.getMessage());
+        } finally {
+            closeResultSet(rs);
+            closeStatement(stmt);
+            closeConnection(conn);
         }
-        
-        System.out.println("=== DATABASE FIX COMPLETE ===\n");
-        
-    } catch (SQLException e) {
-        System.err.println("Fix Database Error: " + e.getMessage());
-    } finally {
-        closeResultSet(rs);
-        closeStatement(stmt);
-        closeConnection(conn);
     }
-}
 
     public static boolean authenticateUser(String username, String password) {
         Connection conn = null;
@@ -548,7 +656,6 @@ public static void fixDatabaseConstraints() {
         }
     }
 
-    // UPDATED: Removed role and address parameters
     public static boolean addUser(String username, String email, String password,
                                  String firstName, String lastName, String phone) {
         return registerUser(username, email, password, firstName, lastName, phone);
@@ -575,7 +682,7 @@ public static void fixDatabaseConstraints() {
             
             closeStatement(pstmt);
             
-            String customerSql = "UPDATE Customer SET First_Name = ?, Last_Name = ?, Phone_Number = ?, WHERE User_ID = ?";
+            String customerSql = "UPDATE Customer SET First_Name = ?, Last_Name = ?, Phone_Number = ? WHERE User_ID = ?";
             pstmt = conn.prepareStatement(customerSql);
             pstmt.setString(1, firstName);
             pstmt.setString(2, lastName);
@@ -638,22 +745,6 @@ public static void fixDatabaseConstraints() {
         } finally {
             closeStatement(pstmt);
             closeConnection(conn);
-        }
-    }
-
-    public static ResultSet getAllCustomers() {
-        Connection conn = connect();
-        if (conn == null) return null;
-        
-        try {
-            String sql = "SELECT c.*, u.Username, u.Email FROM Customer c " +
-                        "LEFT JOIN Users u ON c.User_ID = u.User_ID ORDER BY c.Customer_ID";
-            Statement stmt = conn.createStatement();
-            return stmt.executeQuery(sql);
-        } catch (SQLException e) {
-            System.err.println("Get Customers Error: " + e.getMessage());
-            closeConnection(conn);
-            return null;
         }
     }
 
@@ -730,6 +821,12 @@ public static void fixDatabaseConstraints() {
             conn = connect();
             if (conn == null) return -1;
             
+            // Verify customer exists
+            if (!customerExists(customerId)) {
+                System.err.println("Customer ID " + customerId + " does not exist");
+                return -1;
+            }
+            
             String sql = "INSERT INTO `Transaction` (Customer_ID, Total_Amount, Payment_Method, Status, Created_By, Order_Date) VALUES (?, ?, ?, ?, ?, datetime('now'))";
             pstmt = conn.prepareStatement(sql);
             pstmt.setInt(1, customerId);
@@ -755,6 +852,26 @@ public static void fixDatabaseConstraints() {
             closeConnection(conn);
         }
         return -1;
+    }
+    
+    private static boolean customerExists(int customerId) {
+        Connection conn = null;
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        try {
+            conn = connect();
+            if (conn == null) return false;
+            pstmt = conn.prepareStatement("SELECT COUNT(*) FROM Customer WHERE Customer_ID = ?");
+            pstmt.setInt(1, customerId);
+            rs = pstmt.executeQuery();
+            return rs.next() && rs.getInt(1) > 0;
+        } catch (SQLException e) {
+            return false;
+        } finally {
+            closeResultSet(rs);
+            closeStatement(pstmt);
+            closeConnection(conn);
+        }
     }
 
     public static boolean updateTransactionStatus(int transactionId, String status) {
@@ -833,6 +950,32 @@ public static void fixDatabaseConstraints() {
         }
     }
 
+    public static boolean createShipping(int transactionId, String courierName, String trackingNumber, String address) {
+        Connection conn = null;
+        PreparedStatement pstmt = null;
+        
+        try {
+            conn = connect();
+            if (conn == null) return false;
+            
+            String sql = "INSERT INTO Shipping (Transaction_ID, Courier_Name, Tracking_Number, Shipping_Address, Shipping_Status, Estimated_Delivery) " +
+                        "VALUES (?, ?, ?, ?, 'In Transit', date('now', '+7 days'))";
+            pstmt = conn.prepareStatement(sql);
+            pstmt.setInt(1, transactionId);
+            pstmt.setString(2, courierName);
+            pstmt.setString(3, trackingNumber);
+            pstmt.setString(4, address);
+            
+            return pstmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            System.err.println("Create Shipping Error: " + e.getMessage());
+            return false;
+        } finally {
+            closeStatement(pstmt);
+            closeConnection(conn);
+        }
+    }
+
     public static ResultSet getShippingInfo(int transactionId) {
         Connection conn = connect();
         if (conn == null) return null;
@@ -852,6 +995,46 @@ public static void fixDatabaseConstraints() {
     public static boolean updateShippingStatus(int shipId, String status) {
         String sql = "UPDATE Shipping SET Shipping_Status = ? WHERE Ship_ID = ?";
         return executeUpdate(sql, status, shipId);
+    }
+    
+    public static boolean deleteShipping(int shipId) {
+        Connection conn = null;
+        PreparedStatement pstmt = null;
+        
+        try {
+            conn = connect();
+            if (conn == null) return false;
+            
+            String sql = "DELETE FROM Shipping WHERE Ship_ID = ?";
+            pstmt = conn.prepareStatement(sql);
+            pstmt.setInt(1, shipId);
+            
+            return pstmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            System.err.println("Delete Shipping Error: " + e.getMessage());
+            return false;
+        } finally {
+            closeStatement(pstmt);
+            closeConnection(conn);
+        }
+    }
+
+    public static ResultSet getAllShipping() {
+        Connection conn = connect();
+        if (conn == null) return null;
+        
+        try {
+            String sql = "SELECT s.*, t.Customer_ID, c.First_Name, c.Last_Name FROM Shipping s " +
+                        "LEFT JOIN `Transaction` t ON s.Transaction_ID = t.Transaction_ID " +
+                        "LEFT JOIN Customer c ON t.Customer_ID = c.Customer_ID " +
+                        "ORDER BY s.Ship_ID DESC";
+            Statement stmt = conn.createStatement();
+            return stmt.executeQuery(sql);
+        } catch (SQLException e) {
+            System.err.println("Get Shipping Error: " + e.getMessage());
+            closeConnection(conn);
+            return null;
+        }
     }
 
     public static ResultSet getReceiptData(int transactionId) {
@@ -875,95 +1058,159 @@ public static void fixDatabaseConstraints() {
         }
     }
 
-    public static boolean addCustomer(String firstName, String lastName, String phone, String address) {
-        String sql = "INSERT INTO Customer (First_Name, Last_Name, Phone_Number, Default_Address, Join_Date) VALUES (?, ?, ?, ?, datetime('now'))";
-        return executeUpdate(sql, firstName, lastName, phone, address);
-    }
+    public static boolean addCustomer(String firstName, String lastName, String email, String phone, String address) {
+    String sql = "INSERT INTO Customer (First_Name, Last_Name, Email, Phone_Number, Default_Address, Join_Date) VALUES (?, ?, ?, ?, ?, datetime('now'))";
+    return executeUpdate(sql, firstName, lastName, email, phone, address);
+}
 
-    public static boolean updateCustomer(int customerId, String firstName, String lastName, String phone, String address) {
-        String sql = "UPDATE Customer SET First_Name = ?, Last_Name = ?, Phone_Number = ?, Default_Address = ? WHERE Customer_ID = ?";
-        return executeUpdate(sql, firstName, lastName, phone, address, customerId);
-    }
-
-    public static boolean deleteCustomer(int customerId) {
-        Connection conn = null;
-        PreparedStatement pstmt = null;
-        ResultSet rs = null;
+public static boolean updateCustomer(int customerId, String firstName, String lastName, String email, String phone, String address) {
+    String sql = "UPDATE Customer SET First_Name = ?, Last_Name = ?, Email = ?, Phone_Number = ?, Default_Address = ? WHERE Customer_ID = ?";
+    return executeUpdate(sql, firstName, lastName, email, phone, address, customerId);
+}
+public static void addEmailColumnToCustomer() {
+    Connection conn = null;
+    Statement stmt = null;
+    ResultSet rs = null;
+    
+    try {
+        conn = connect();
+        if (conn == null) return;
         
-        try {
-            conn = connect();
-            if (conn == null) return false;
-            
-            // First check if this customer has any transactions
-            String checkSql = "SELECT COUNT(*) as count FROM `Transaction` WHERE Customer_ID = ?";
-            pstmt = conn.prepareStatement(checkSql);
-            pstmt.setInt(1, customerId);
-            rs = pstmt.executeQuery();
-            
-            if (rs.next() && rs.getInt("count") > 0) {
-                System.err.println("Cannot delete customer with existing transactions");
-                return false;
+        stmt = conn.createStatement();
+        
+        // Check if Email column exists
+        rs = stmt.executeQuery("PRAGMA table_info(Customer)");
+        boolean emailExists = false;
+        while (rs.next()) {
+            if (rs.getString("name").equals("Email")) {
+                emailExists = true;
+                break;
             }
-            
-            closeResultSet(rs);
-            closeStatement(pstmt);
-            
-            String deleteSql = "DELETE FROM Customer WHERE Customer_ID = ?";
-            pstmt = conn.prepareStatement(deleteSql);
-            pstmt.setInt(1, customerId);
-            return pstmt.executeUpdate() > 0;
-            
-        } catch (SQLException e) {
-            System.err.println("Delete Customer Error: " + e.getMessage());
+        }
+        closeResultSet(rs);
+        
+        if (!emailExists) {
+            // Add Email column
+            stmt.executeUpdate("ALTER TABLE Customer ADD COLUMN Email TEXT");
+            System.out.println("Added Email column to Customer table");
+        } else {
+            System.out.println("Email column already exists");
+        }
+        
+    } catch (SQLException e) {
+        System.err.println("Error adding Email column: " + e.getMessage());
+    } finally {
+        closeResultSet(rs);
+        closeStatement(stmt);
+        closeConnection(conn);
+    }
+}
+
+public static boolean deleteCustomer(int customerId) {
+    Connection conn = null;
+    PreparedStatement pstmt = null;
+    ResultSet rs = null;
+    
+    try {
+        conn = connect();
+        if (conn == null) return false;
+        
+        // First check if this customer has any transactions
+        String checkSql = "SELECT COUNT(*) as count FROM `Transaction` WHERE Customer_ID = ?";
+        pstmt = conn.prepareStatement(checkSql);
+        pstmt.setInt(1, customerId);
+        rs = pstmt.executeQuery();
+        
+        if (rs.next() && rs.getInt("count") > 0) {
+            System.err.println("Cannot delete customer with existing transactions");
             return false;
-        } finally {
-            closeResultSet(rs);
-            closeStatement(pstmt);
-            closeConnection(conn);
         }
-    }
-
-    public static ResultSet searchCustomers(String searchTerm) {
-        Connection conn = connect();
-        if (conn == null) return null;
         
-        try {
-            String sql = "SELECT c.*, u.Username, u.Email FROM Customer c " +
-                        "LEFT JOIN Users u ON c.User_ID = u.User_ID " +
-                        "WHERE c.First_Name LIKE ? OR c.Last_Name LIKE ? OR c.Phone_Number LIKE ? OR u.Username LIKE ? OR u.Email LIKE ? " +
-                        "ORDER BY c.Customer_ID";
-            PreparedStatement pstmt = conn.prepareStatement(sql);
-            String pattern = "%" + searchTerm + "%";
-            pstmt.setString(1, pattern);
-            pstmt.setString(2, pattern);
-            pstmt.setString(3, pattern);
-            pstmt.setString(4, pattern);
-            pstmt.setString(5, pattern);
-            return pstmt.executeQuery();
-        } catch (SQLException e) {
-            System.err.println("Search Customers Error: " + e.getMessage());
-            closeConnection(conn);
-            return null;
-        }
-    }
-
-    public static ResultSet getCustomerById(int customerId) {
-        Connection conn = connect();
-        if (conn == null) return null;
+        closeResultSet(rs);
+        closeStatement(pstmt);
         
-        try {
-            String sql = "SELECT c.*, u.Username, u.Email FROM Customer c " +
-                        "LEFT JOIN Users u ON c.User_ID = u.User_ID " +
-                        "WHERE c.Customer_ID = ?";
-            PreparedStatement pstmt = conn.prepareStatement(sql);
-            pstmt.setInt(1, customerId);
-            return pstmt.executeQuery();
-        } catch (SQLException e) {
-            System.err.println("Get Customer Error: " + e.getMessage());
-            closeConnection(conn);
-            return null;
-        }
+        // Delete the customer
+        String deleteSql = "DELETE FROM Customer WHERE Customer_ID = ?";
+        pstmt = conn.prepareStatement(deleteSql);
+        pstmt.setInt(1, customerId);
+        int result = pstmt.executeUpdate();
+        
+        return result > 0;
+        
+    } catch (SQLException e) {
+        System.err.println("Delete Customer Error: " + e.getMessage());
+        return false;
+    } finally {
+        closeResultSet(rs);
+        closeStatement(pstmt);
+        closeConnection(conn);
     }
+}
+
+public static ResultSet getAllCustomers() {
+    Connection conn = connect();
+    if (conn == null) return null;
+    
+    try {
+        // First check if Email column exists
+        DatabaseMetaData meta = conn.getMetaData();
+        ResultSet columns = meta.getColumns(null, null, "Customer", "Email");
+        boolean emailExists = columns.next();
+        columns.close();
+        
+        String sql;
+        if (emailExists) {
+            sql = "SELECT Customer_ID, First_Name, Last_Name, Email, Phone_Number, Default_Address, Join_Date FROM Customer ORDER BY Customer_ID";
+        } else {
+            sql = "SELECT Customer_ID, First_Name, Last_Name, Phone_Number, Default_Address, Join_Date FROM Customer ORDER BY Customer_ID";
+        }
+        
+        Statement stmt = conn.createStatement();
+        return stmt.executeQuery(sql);
+    } catch (SQLException e) {
+        System.err.println("Get Customers Error: " + e.getMessage());
+        closeConnection(conn);
+        return null;
+    }
+}
+
+public static ResultSet searchCustomers(String searchTerm) {
+    Connection conn = connect();
+    if (conn == null) return null;
+    
+    try {
+        String sql = "SELECT Customer_ID, First_Name, Last_Name, Email, Phone_Number, Default_Address, Join_Date FROM Customer " +
+                    "WHERE First_Name LIKE ? OR Last_Name LIKE ? OR Email LIKE ? OR Phone_Number LIKE ? " +
+                    "ORDER BY Customer_ID";
+        PreparedStatement pstmt = conn.prepareStatement(sql);
+        String pattern = "%" + searchTerm + "%";
+        pstmt.setString(1, pattern);
+        pstmt.setString(2, pattern);
+        pstmt.setString(3, pattern);
+        pstmt.setString(4, pattern);
+        return pstmt.executeQuery();
+    } catch (SQLException e) {
+        System.err.println("Search Customers Error: " + e.getMessage());
+        closeConnection(conn);
+        return null;
+    }
+}
+
+public static ResultSet getCustomerById(int customerId) {
+    Connection conn = connect();
+    if (conn == null) return null;
+    
+    try {
+        String sql = "SELECT Customer_ID, First_Name, Last_Name, Email, Phone_Number, Default_Address, Join_Date FROM Customer WHERE Customer_ID = ?";
+        PreparedStatement pstmt = conn.prepareStatement(sql);
+        pstmt.setInt(1, customerId);
+        return pstmt.executeQuery();
+    } catch (SQLException e) {
+        System.err.println("Get Customer Error: " + e.getMessage());
+        closeConnection(conn);
+        return null;
+    }
+}
 
     public static ResultSet searchProducts(String searchTerm) {
         Connection conn = connect();
@@ -1003,24 +1250,6 @@ public static void fixDatabaseConstraints() {
     public static boolean updateProfilePic(String imagePath) {
         String sql = "UPDATE Users SET Profile_Pic = ? WHERE User_ID = ?";
         return executeUpdate(sql, imagePath, currentUserId);
-    }
-
-    public static ResultSet getAllShipping() {
-        Connection conn = connect();
-        if (conn == null) return null;
-        
-        try {
-            String sql = "SELECT s.*, t.Customer_ID, c.First_Name, c.Last_Name FROM Shipping s " +
-                        "LEFT JOIN `Transaction` t ON s.Transaction_ID = t.Transaction_ID " +
-                        "LEFT JOIN Customer c ON t.Customer_ID = c.Customer_ID " +
-                        "ORDER BY s.Ship_ID DESC";
-            Statement stmt = conn.createStatement();
-            return stmt.executeQuery(sql);
-        } catch (SQLException e) {
-            System.err.println("Get Shipping Error: " + e.getMessage());
-            closeConnection(conn);
-            return null;
-        }
     }
 
     public static ResultSet searchShipping(String searchTerm) {
@@ -1233,80 +1462,33 @@ public static void fixDatabaseConstraints() {
         String sql = "UPDATE Product SET Image_Path = ? WHERE Watch_ID = ?";
         return executeUpdate(sql, imagePath, watchId);
     }
+    
     public static String getUserProfilePic(int userId) {
-    Connection conn = null;
-    PreparedStatement pstmt = null;
-    ResultSet rs = null;
-    String profilePic = null;
-    
-    try {
-        conn = connect();
-        if (conn == null) return null;
+        Connection conn = null;
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        String profilePic = null;
         
-        String sql = "SELECT Profile_Pic FROM Users WHERE User_ID = ?";
-        pstmt = conn.prepareStatement(sql);
-        pstmt.setInt(1, userId);
-        rs = pstmt.executeQuery();
-        
-        if (rs.next()) {
-            profilePic = rs.getString("Profile_Pic");
+        try {
+            conn = connect();
+            if (conn == null) return null;
+            
+            String sql = "SELECT Profile_Pic FROM Users WHERE User_ID = ?";
+            pstmt = conn.prepareStatement(sql);
+            pstmt.setInt(1, userId);
+            rs = pstmt.executeQuery();
+            
+            if (rs.next()) {
+                profilePic = rs.getString("Profile_Pic");
+            }
+        } catch (SQLException e) {
+            System.err.println("Error getting user profile pic: " + e.getMessage());
+        } finally {
+            closeResultSet(rs);
+            closeStatement(pstmt);
+            closeConnection(conn);
         }
-    } catch (SQLException e) {
-        System.err.println("Error getting user profile pic: " + e.getMessage());
-    } finally {
-        closeResultSet(rs);
-        closeStatement(pstmt);
-        closeConnection(conn);
+        
+        return profilePic;
     }
-    
-    return profilePic;
-}
-    
-    public static boolean createShipping(int transactionId, String courierName, String trackingNumber, String address) {
-    Connection conn = null;
-    PreparedStatement pstmt = null;
-    
-    try {
-        conn = connect();
-        if (conn == null) return false;
-        
-        String sql = "INSERT INTO Shipping (Transaction_ID, Courier_Name, Tracking_Number, Shipping_Address, Shipping_Status, Estimated_Delivery) " +
-                    "VALUES (?, ?, ?, ?, 'In Transit', date('now', '+7 days'))";
-        pstmt = conn.prepareStatement(sql);
-        pstmt.setInt(1, transactionId);
-        pstmt.setString(2, courierName);
-        pstmt.setString(3, trackingNumber);
-        pstmt.setString(4, address);
-        
-        return pstmt.executeUpdate() > 0;
-    } catch (SQLException e) {
-        System.err.println("Create Shipping Error: " + e.getMessage());
-        return false;
-    } finally {
-        closeStatement(pstmt);
-        closeConnection(conn);
-    }
-}
-
-public static boolean deleteShipping(int shipId) {
-    Connection conn = null;
-    PreparedStatement pstmt = null;
-    
-    try {
-        conn = connect();
-        if (conn == null) return false;
-        
-        String sql = "DELETE FROM Shipping WHERE Ship_ID = ?";
-        pstmt = conn.prepareStatement(sql);
-        pstmt.setInt(1, shipId);
-        
-        return pstmt.executeUpdate() > 0;
-    } catch (SQLException e) {
-        System.err.println("Delete Shipping Error: " + e.getMessage());
-        return false;
-    } finally {
-        closeStatement(pstmt);
-        closeConnection(conn);
-    }
-}
 }

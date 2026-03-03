@@ -183,11 +183,11 @@ public class CustomerManagementPanel extends JPanel {
 
             },
             new String [] {
-                "Customer ID", "Username", "Email", "First Name", "Last Name", "Phone", "Join Date"
+                "Customer ID", "Email", "First Name", "Last Name", "Phone", "Join Date"
             }
         ) {
             boolean[] canEdit = new boolean [] {
-                false, false, false, false, false, false, false
+                false, false, false, false, false, false
             };
 
             public boolean isCellEditable(int rowIndex, int columnIndex) {
@@ -215,7 +215,6 @@ public class CustomerManagementPanel extends JPanel {
             while (rs.next()) {
                 Object[] row = {
                     "CUS" + rs.getInt("Customer_ID"),
-                    rs.getString("Username") != null ? rs.getString("Username") : "N/A",
                     rs.getString("Email") != null ? rs.getString("Email") : "N/A",
                     rs.getString("First_Name"),
                     rs.getString("Last_Name"),
@@ -233,38 +232,37 @@ public class CustomerManagementPanel extends JPanel {
     }
 
     private void searchCustomers() {
-        String searchTerm = txtSearch.getText().trim();
-        if (searchTerm.isEmpty()) {
-            loadCustomerData();
-            return;
+    String searchTerm = txtSearch.getText().trim();
+    if (searchTerm.isEmpty()) {
+        loadCustomerData();
+        return;
+    }
+    
+    try {
+        ResultSet rs = Config.searchCustomers(searchTerm);
+        DefaultTableModel model = (DefaultTableModel) customerTable.getModel();
+        model.setRowCount(0);
+        
+        while (rs.next()) {
+            Object[] row = {
+                "CUS" + rs.getInt("Customer_ID"),
+                rs.getString("First_Name"),
+                rs.getString("Last_Name"),
+                rs.getString("Email") != null ? rs.getString("Email") : "N/A",
+                rs.getString("Phone_Number"),
+                rs.getString("Join_Date")
+            };
+            model.addRow(row);
         }
         
-        try {
-            ResultSet rs = Config.searchCustomers(searchTerm);
-            DefaultTableModel model = (DefaultTableModel) customerTable.getModel();
-            model.setRowCount(0);
-            
-            while (rs.next()) {
-                Object[] row = {
-                    "CUS" + rs.getInt("Customer_ID"),
-                    rs.getString("Username") != null ? rs.getString("Username") : "N/A",
-                    rs.getString("Email") != null ? rs.getString("Email") : "N/A",
-                    rs.getString("First_Name"),
-                    rs.getString("Last_Name"),
-                    rs.getString("Phone_Number"),
-                    rs.getString("Join_Date")
-                };
-                model.addRow(row);
-            }
-            
-            if (model.getRowCount() == 0) {
-                JOptionPane.showMessageDialog(this, "No customers found matching: " + searchTerm);
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-            JOptionPane.showMessageDialog(this, "Error searching customers: " + e.getMessage());
+        if (model.getRowCount() == 0) {
+            JOptionPane.showMessageDialog(this, "No customers found matching: " + searchTerm);
         }
+    } catch (Exception e) {
+        e.printStackTrace();
+        JOptionPane.showMessageDialog(this, "Error searching customers: " + e.getMessage());
     }
+}
 
     private void addCustomer() {
         CustomerDialog dialog = new CustomerDialog(null);
@@ -318,196 +316,216 @@ public class CustomerManagementPanel extends JPanel {
     }
 
     private void viewCustomerDetails() {
-        int selectedRow = customerTable.getSelectedRow();
-        if (selectedRow >= 0) {
-            String customerIdStr = customerTable.getValueAt(selectedRow, 0).toString();
-            String username = customerTable.getValueAt(selectedRow, 1).toString();
-            String email = customerTable.getValueAt(selectedRow, 2).toString();
-            String firstName = customerTable.getValueAt(selectedRow, 3).toString();
-            String lastName = customerTable.getValueAt(selectedRow, 4).toString();
-            String phone = customerTable.getValueAt(selectedRow, 5).toString();
-            String joinDate = customerTable.getValueAt(selectedRow, 6).toString();
-            
-            String message = String.format(
-                "Customer ID: %s\n" +
-                "Username: %s\n" +
-                "Email: %s\n" +
-                "Name: %s %s\n" +
-                "Phone: %s\n" +
-                "Join Date: %s",
-                customerIdStr, username, email, firstName, lastName, phone, joinDate
-            );
-            
-            JOptionPane.showMessageDialog(this, message, "Customer Details", JOptionPane.INFORMATION_MESSAGE);
-        }
+    int selectedRow = customerTable.getSelectedRow();
+    if (selectedRow >= 0) {
+        String customerIdStr = customerTable.getValueAt(selectedRow, 0).toString();
+        String firstName = customerTable.getValueAt(selectedRow, 1).toString();
+        String lastName = customerTable.getValueAt(selectedRow, 2).toString();
+        String email = customerTable.getValueAt(selectedRow, 3).toString();
+        String phone = customerTable.getValueAt(selectedRow, 4).toString();
+        String joinDate = customerTable.getValueAt(selectedRow, 5).toString();
+        
+        String message = String.format(
+            "╔════════════════════════════════╗\n" +
+            "║       CUSTOMER DETAILS         ║\n" +
+            "╚════════════════════════════════╝\n\n" +
+            "Customer ID: %s\n" +
+            "Name: %s %s\n" +
+            "Email: %s\n" +
+            "Phone: %s\n" +
+            "Join Date: %s",
+            customerIdStr, firstName, lastName, email, phone, joinDate
+        );
+
+        JTextArea textArea = new JTextArea(message);
+        textArea.setFont(new Font("Monospaced", Font.PLAIN, 12));
+        textArea.setEditable(false);
+        textArea.setBackground(new Color(240, 240, 245));
+        
+        JOptionPane.showMessageDialog(this, new JScrollPane(textArea), "Customer Details", JOptionPane.INFORMATION_MESSAGE);
     }
+}
 
     // ==================== INNER CLASS ====================
 
-    private class CustomerDialog extends JDialog {
-        private JTextField txtFirstName, txtLastName, txtPhone, txtAddress;
-        private Integer customerId;
+  private class CustomerDialog extends JDialog {
+    private JTextField txtFirstName, txtLastName, txtEmail, txtPhone, txtAddress;
+    private Integer customerId;
 
-        public CustomerDialog(Integer customerId) {
-            this.customerId = customerId;
-            initDialog();
-            if (customerId != null) {
-                loadCustomerData();
-            }
-        }
-
-        private void initDialog() {
-            setTitle(customerId == null ? "Add Customer" : "Edit Customer");
-            setSize(400, 350);
-            setLocationRelativeTo(CustomerManagementPanel.this);
-            setModal(true);
-            setLayout(null);
-            getContentPane().setBackground(new Color(240, 240, 245));
-
-            JPanel panel = new JPanel();
-            panel.setLayout(null);
-            panel.setBounds(20, 20, 350, 270);
-            panel.setBackground(Color.WHITE);
-            panel.setBorder(BorderFactory.createLineBorder(new Color(200, 200, 200)));
-            add(panel);
-
-            int y = 30;
-            int labelWidth = 80;
-            int fieldWidth = 220;
-
-            // Title
-            JLabel lblTitle = new JLabel(customerId == null ? "New Customer" : "Edit Customer");
-            lblTitle.setFont(new Font("SansSerif", Font.BOLD, 16));
-            lblTitle.setForeground(new Color(20, 40, 60));
-            lblTitle.setBounds(120, 10, 200, 25);
-            panel.add(lblTitle);
-
-            // First Name
-            JLabel lblFirstName = new JLabel("First Name:");
-            lblFirstName.setFont(new Font("SansSerif", Font.BOLD, 12));
-            lblFirstName.setBounds(30, y, labelWidth, 25);
-            panel.add(lblFirstName);
-
-            txtFirstName = new JTextField();
-            txtFirstName.setBounds(120, y, fieldWidth, 30);
-            styleTextField(txtFirstName);
-            panel.add(txtFirstName);
-            y += 40;
-
-            // Last Name
-            JLabel lblLastName = new JLabel("Last Name:");
-            lblLastName.setFont(new Font("SansSerif", Font.BOLD, 12));
-            lblLastName.setBounds(30, y, labelWidth, 25);
-            panel.add(lblLastName);
-
-            txtLastName = new JTextField();
-            txtLastName.setBounds(120, y, fieldWidth, 30);
-            styleTextField(txtLastName);
-            panel.add(txtLastName);
-            y += 40;
-
-            // Phone
-            JLabel lblPhone = new JLabel("Phone:");
-            lblPhone.setFont(new Font("SansSerif", Font.BOLD, 12));
-            lblPhone.setBounds(30, y, labelWidth, 25);
-            panel.add(lblPhone);
-
-            txtPhone = new JTextField();
-            txtPhone.setBounds(120, y, fieldWidth, 30);
-            styleTextField(txtPhone);
-            panel.add(txtPhone);
-            y += 40;
-
-            // Address
-            JLabel lblAddress = new JLabel("Address:");
-            lblAddress.setFont(new Font("SansSerif", Font.BOLD, 12));
-            lblAddress.setBounds(30, y, labelWidth, 25);
-            panel.add(lblAddress);
-
-            txtAddress = new JTextField();
-            txtAddress.setBounds(120, y, fieldWidth, 30);
-            styleTextField(txtAddress);
-            panel.add(txtAddress);
-            y += 50;
-
-            // Buttons
-            JButton btnSave = new JButton("SAVE");
-            btnSave.setBackground(new Color(255, 215, 0));
-            btnSave.setFont(new Font("SansSerif", Font.BOLD, 12));
-            btnSave.setForeground(new Color(40, 40, 40));
-            btnSave.setBounds(100, y, 90, 35);
-            btnSave.setBorderPainted(false);
-            btnSave.setFocusPainted(false);
-            btnSave.setCursor(new Cursor(Cursor.HAND_CURSOR));
-            btnSave.addActionListener(e -> saveCustomer());
-            panel.add(btnSave);
-
-            JButton btnCancel = new JButton("CANCEL");
-            btnCancel.setBackground(new Color(100, 100, 100));
-            btnCancel.setFont(new Font("SansSerif", Font.BOLD, 12));
-            btnCancel.setForeground(Color.WHITE);
-            btnCancel.setBounds(200, y, 90, 35);
-            btnCancel.setBorderPainted(false);
-            btnCancel.setFocusPainted(false);
-            btnCancel.setCursor(new Cursor(Cursor.HAND_CURSOR));
-            btnCancel.addActionListener(e -> dispose());
-            panel.add(btnCancel);
-            
-            // Add hover effects to dialog buttons
-            addButtonHoverEffect(btnSave, new Color(255, 215, 0), new Color(255, 240, 150));
-            addButtonHoverEffect(btnCancel, new Color(100, 100, 100), new Color(130, 130, 130));
-        }
-
-        private void styleTextField(JTextField field) {
-            field.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(new Color(180, 180, 180)),
-                BorderFactory.createEmptyBorder(5, 10, 5, 10)
-            ));
-        }
-
-        private void loadCustomerData() {
-            try {
-                ResultSet rs = Config.getAllCustomers();
-                while (rs.next()) {
-                    if (rs.getInt("Customer_ID") == customerId) {
-                        txtFirstName.setText(rs.getString("First_Name"));
-                        txtLastName.setText(rs.getString("Last_Name"));
-                        txtPhone.setText(rs.getString("Phone_Number"));
-                        txtAddress.setText(rs.getString("Default_Address"));
-                        break;
-                    }
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
-
-        private void saveCustomer() {
-            String firstName = txtFirstName.getText().trim();
-            String lastName = txtLastName.getText().trim();
-            String phone = txtPhone.getText().trim();
-            String address = txtAddress.getText().trim();
-
-            if (firstName.isEmpty() || lastName.isEmpty()) {
-                JOptionPane.showMessageDialog(this, "First name and last name are required");
-                return;
-            }
-
-            boolean success;
-            if (customerId == null) {
-                success = Config.addCustomer(firstName, lastName, phone, address);
-            } else {
-                success = Config.updateCustomer(customerId, firstName, lastName, phone, address);
-            }
-
-            if (success) {
-                JOptionPane.showMessageDialog(this, "Customer saved successfully!");
-                dispose();
-            } else {
-                JOptionPane.showMessageDialog(this, "Failed to save customer!");
-            }
+    public CustomerDialog(Integer customerId) {
+        this.customerId = customerId;
+        initDialog();
+        if (customerId != null) {
+            loadCustomerData();
         }
     }
+
+    private void initDialog() {
+        setTitle(customerId == null ? "Add Customer" : "Edit Customer");
+        setSize(450, 420);
+        setLocationRelativeTo(CustomerManagementPanel.this);
+        setModal(true);
+        setLayout(null);
+        getContentPane().setBackground(new Color(240, 240, 245));
+
+        JPanel panel = new JPanel();
+        panel.setLayout(null);
+        panel.setBounds(20, 20, 400, 340);
+        panel.setBackground(Color.WHITE);
+        panel.setBorder(BorderFactory.createLineBorder(new Color(200, 200, 200)));
+        add(panel);
+
+        int y = 30;
+        int labelWidth = 80;
+        int fieldWidth = 250;
+
+        // Title
+        JLabel lblTitle = new JLabel(customerId == null ? "NEW CUSTOMER" : "EDIT CUSTOMER");
+        lblTitle.setFont(new Font("SansSerif", Font.BOLD, 18));
+        lblTitle.setForeground(new Color(20, 40, 60));
+        lblTitle.setBounds(120, 10, 200, 25);
+        panel.add(lblTitle);
+
+        // First Name
+        JLabel lblFirstName = new JLabel("First Name:");
+        lblFirstName.setFont(new Font("SansSerif", Font.BOLD, 12));
+        lblFirstName.setBounds(30, y, labelWidth, 25);
+        panel.add(lblFirstName);
+
+        txtFirstName = new JTextField();
+        txtFirstName.setBounds(120, y, fieldWidth, 30);
+        styleTextField(txtFirstName);
+        panel.add(txtFirstName);
+        y += 40;
+
+        // Last Name
+        JLabel lblLastName = new JLabel("Last Name:");
+        lblLastName.setFont(new Font("SansSerif", Font.BOLD, 12));
+        lblLastName.setBounds(30, y, labelWidth, 25);
+        panel.add(lblLastName);
+
+        txtLastName = new JTextField();
+        txtLastName.setBounds(120, y, fieldWidth, 30);
+        styleTextField(txtLastName);
+        panel.add(txtLastName);
+        y += 40;
+
+        // Email (NEW FIELD)
+        JLabel lblEmail = new JLabel("Email:");
+        lblEmail.setFont(new Font("SansSerif", Font.BOLD, 12));
+        lblEmail.setBounds(30, y, labelWidth, 25);
+        panel.add(lblEmail);
+
+        txtEmail = new JTextField();
+        txtEmail.setBounds(120, y, fieldWidth, 30);
+        styleTextField(txtEmail);
+        panel.add(txtEmail);
+        y += 40;
+
+        // Phone
+        JLabel lblPhone = new JLabel("Phone:");
+        lblPhone.setFont(new Font("SansSerif", Font.BOLD, 12));
+        lblPhone.setBounds(30, y, labelWidth, 25);
+        panel.add(lblPhone);
+
+        txtPhone = new JTextField();
+        txtPhone.setBounds(120, y, fieldWidth, 30);
+        styleTextField(txtPhone);
+        panel.add(txtPhone);
+        y += 40;
+
+        // Address
+        JLabel lblAddress = new JLabel("Address:");
+        lblAddress.setFont(new Font("SansSerif", Font.BOLD, 12));
+        lblAddress.setBounds(30, y, labelWidth, 25);
+        panel.add(lblAddress);
+
+        txtAddress = new JTextField();
+        txtAddress.setBounds(120, y, fieldWidth, 30);
+        styleTextField(txtAddress);
+        panel.add(txtAddress);
+        y += 50;
+
+        // Buttons
+        JButton btnSave = new JButton("SAVE");
+        btnSave.setBackground(new Color(255, 215, 0));
+        btnSave.setFont(new Font("SansSerif", Font.BOLD, 14));
+        btnSave.setForeground(new Color(40, 40, 40));
+        btnSave.setBounds(120, y, 100, 35);
+        btnSave.setBorderPainted(false);
+        btnSave.setFocusPainted(false);
+        btnSave.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        btnSave.addActionListener(e -> saveCustomer());
+        addButtonHoverEffect(btnSave, new Color(255, 215, 0), new Color(255, 240, 150));
+        panel.add(btnSave);
+
+        JButton btnCancel = new JButton("CANCEL");
+        btnCancel.setBackground(new Color(100, 100, 100));
+        btnCancel.setFont(new Font("SansSerif", Font.BOLD, 14));
+        btnCancel.setForeground(Color.WHITE);
+        btnCancel.setBounds(230, y, 100, 35);
+        btnCancel.setBorderPainted(false);
+        btnCancel.setFocusPainted(false);
+        btnCancel.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        btnCancel.addActionListener(e -> dispose());
+        addButtonHoverEffect(btnCancel, new Color(100, 100, 100), new Color(130, 130, 130));
+        panel.add(btnCancel);
+    }
+
+    private void styleTextField(JTextField field) {
+        field.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(180, 180, 180)),
+            BorderFactory.createEmptyBorder(5, 10, 5, 10)
+        ));
+    }
+
+    private void loadCustomerData() {
+        try {
+            ResultSet rs = Config.getCustomerById(customerId);
+            if (rs != null && rs.next()) {
+                txtFirstName.setText(rs.getString("First_Name"));
+                txtLastName.setText(rs.getString("Last_Name"));
+                txtEmail.setText(rs.getString("Email") != null ? rs.getString("Email") : "");
+                txtPhone.setText(rs.getString("Phone_Number"));
+                txtAddress.setText(rs.getString("Default_Address"));
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void saveCustomer() {
+        String firstName = txtFirstName.getText().trim();
+        String lastName = txtLastName.getText().trim();
+        String email = txtEmail.getText().trim();
+        String phone = txtPhone.getText().trim();
+        String address = txtAddress.getText().trim();
+
+        if (firstName.isEmpty() || lastName.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "First name and last name are required");
+            return;
+        }
+        
+        if (!email.isEmpty() && !email.matches("^[A-Za-z0-9+_.-]+@(.+)$")) {
+            JOptionPane.showMessageDialog(this, "Please enter a valid email address");
+            return;
+        }
+
+        boolean success;
+        if (customerId == null) {
+            success = Config.addCustomer(firstName, lastName, email, phone, address);
+        } else {
+            success = Config.updateCustomer(customerId, firstName, lastName, email, phone, address);
+        }
+
+        if (success) {
+            JOptionPane.showMessageDialog(this, "Customer saved successfully!");
+            dispose();
+        } else {
+            JOptionPane.showMessageDialog(this, "Failed to save customer!");
+        }
+    }
+}
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JButton btnAdd;
